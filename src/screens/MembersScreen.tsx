@@ -1,119 +1,156 @@
-import React from 'react';
-import {
-  View, Text, ScrollView, StyleSheet, StatusBar,
-} from 'react-native';
-import { Feather } from '@expo/vector-icons';
+import React, { useState } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, StatusBar } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { useApp } from '../context/AppContext';
-import { Avatar } from '../components/Avatar';
 import { ScoreBar } from '../components/ScoreBar';
 import { Spacing, Radius } from '../constants/theme';
 import { getLeaderboard } from '../utils/helpers';
 
+const TROPHY_COLORS = ['#FFB347', '#C0C0C0', '#CD7F32'];
+const TABS = ['This Week', 'This Month', 'All Time'] as const;
+type Tab = typeof TABS[number];
+
 export const MembersScreen = () => {
   const { theme, isDark } = useTheme();
-  const { members, tasks, currentUser } = useApp();
+  const { members } = useApp();
   const leaderboard = getLeaderboard(members);
-
-  const highlights = [
-    { emoji: '🧹', text: `${members.find(m => m.score === Math.max(...members.map(x => x.score)))?.name.split(' ')[0]} is leading with ${Math.max(...members.map(m => m.score))} points` },
-    { emoji: '⚠️', text: `${members.find(m => m.score === Math.min(...members.map(x => x.score)))?.name.split(' ')[0]} needs to step it up this week` },
-    { emoji: '✅', text: `${tasks.filter(t => t.status === 'done').length} tasks completed this week by the group` },
-  ];
-
-  const rankColors = [theme.yellow, theme.textSecondary, '#CD7F32'];
+  const top3 = leaderboard.slice(0, 3);
+  const rest = leaderboard.slice(3);
+  const [activeTab, setActiveTab] = useState<Tab>('This Week');
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
 
-      <View style={styles.header}>
-        <Text style={[styles.title, { color: theme.text }]}>Members</Text>
+      <View style={[styles.header, { backgroundColor: theme.background }]}>
+        <Text style={[styles.title, { color: theme.text }]}>Leaderboard</Text>
+        <View style={[styles.tabRow, { backgroundColor: theme.surface2 }]}>
+          {TABS.map(tab => (
+            <TouchableOpacity
+              key={tab}
+              style={[
+                styles.tab,
+                activeTab === tab && { backgroundColor: theme.accent },
+              ]}
+              onPress={() => setActiveTab(tab)}
+            >
+              <Text style={[
+                styles.tabText,
+                { color: activeTab === tab ? 'white' : theme.textSecondary },
+              ]}>
+                {tab}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
 
-        {/* Top 3 podium */}
-        <View style={[styles.podiumCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <Text style={[styles.podiumTitle, { color: theme.textSecondary }]}>LEADERBOARD</Text>
-          {leaderboard.map((member, i) => (
-            <View
-              key={member.id}
-              style={[
-                styles.memberRow,
-                { borderBottomColor: theme.border },
-                i === leaderboard.length - 1 && { borderBottomWidth: 0 },
-              ]}
-            >
-              <View style={[styles.rankBadge, { backgroundColor: i < 3 ? rankColors[i] + '22' : theme.surface2 }]}>
-                <Text style={[styles.rankText, { color: i < 3 ? rankColors[i] : theme.textTertiary }]}>
-                  {i < 3 ? ['🥇', '🥈', '🥉'][i] : `#${i + 1}`}
-                </Text>
-              </View>
+        {/* Podium */}
+        <View style={styles.podium}>
 
-              <Avatar initials={member.initials} color={member.color} size={42} fontSize={15} />
-
-              <View style={styles.memberInfo}>
-                <View style={styles.memberNameRow}>
-                  <Text style={[styles.memberName, { color: theme.text }]}>
-                    {member.name}{member.isCurrentUser ? ' (you)' : ''}
-                  </Text>
-                  <Text style={[styles.memberScore, { color: member.color }]}>
-                    {member.score} pts
-                  </Text>
-                </View>
-                <Text style={[styles.memberSub, { color: theme.textSecondary }]}>
-                  {member.tasksCompleted} done · {member.tasksAssigned} pending
-                </Text>
-                <ScoreBar value={member.score} color={member.color} />
-              </View>
+          {/* 2nd place */}
+          <View style={[styles.podiumItem, { marginTop: 32 }]}>
+            <View style={[
+              styles.podiumAvatar,
+              { backgroundColor: top3[1]?.color + '22', borderColor: TROPHY_COLORS[1] },
+            ]}>
+              <Text style={[styles.podiumInitials, { color: top3[1]?.color }]}>
+                {top3[1]?.initials}
+              </Text>
             </View>
-          ))}
+            <Text style={styles.podiumTrophy}>🥈</Text>
+            <Text style={[styles.podiumName, { color: theme.text }]}>
+              {top3[1]?.name.split(' ')[0]}
+            </Text>
+            <Text style={[styles.podiumPts, { color: TROPHY_COLORS[1] }]}>
+              {top3[1]?.score} pts
+            </Text>
+          </View>
+
+          {/* 1st place */}
+          <View style={styles.podiumItem}>
+            <Text style={styles.crown}>👑</Text>
+            <View style={[
+              styles.podiumAvatar,
+              styles.podiumAvatarLg,
+              { backgroundColor: top3[0]?.color + '22', borderColor: TROPHY_COLORS[0] },
+            ]}>
+              <Text style={[styles.podiumInitials, styles.podiumInitialsLg, { color: top3[0]?.color }]}>
+                {top3[0]?.initials}
+              </Text>
+            </View>
+            <Text style={styles.podiumTrophy}>🥇</Text>
+            <Text style={[styles.podiumName, styles.podiumNameLg, { color: theme.text }]}>
+              {top3[0]?.name.split(' ')[0]}
+            </Text>
+            <Text style={[styles.podiumPts, styles.podiumPtsLg, { color: theme.accent }]}>
+              {top3[0]?.score} pts
+            </Text>
+          </View>
+
+          {/* 3rd place */}
+          <View style={[styles.podiumItem, { marginTop: 56 }]}>
+            <View style={[
+              styles.podiumAvatar,
+              { backgroundColor: top3[2]?.color + '22', borderColor: TROPHY_COLORS[2] },
+            ]}>
+              <Text style={[styles.podiumInitials, { color: top3[2]?.color }]}>
+                {top3[2]?.initials}
+              </Text>
+            </View>
+            <Text style={styles.podiumTrophy}>🥉</Text>
+            <Text style={[styles.podiumName, { color: theme.text }]}>
+              {top3[2]?.name.split(' ')[0]}
+            </Text>
+            <Text style={[styles.podiumPts, { color: TROPHY_COLORS[2] }]}>
+              {top3[2]?.score} pts
+            </Text>
+          </View>
         </View>
 
-        {/* Weekly highlights */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>
-            THIS WEEK
-          </Text>
-          <View style={[styles.highlightsCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            {highlights.map((h, i) => (
+        {/* Rest of list */}
+        {rest.length > 0 && (
+          <View style={[styles.listCard, {
+            backgroundColor: theme.surface,
+            shadowColor: isDark ? 'rgba(0,0,0,0.4)' : 'rgba(0,0,0,0.06)',
+          }]}>
+            {rest.map((member, i) => (
               <View
-                key={i}
+                key={member.id}
                 style={[
-                  styles.highlightRow,
+                  styles.listRow,
                   { borderBottomColor: theme.border },
-                  i === highlights.length - 1 && { borderBottomWidth: 0 },
+                  i === rest.length - 1 && { borderBottomWidth: 0 },
                 ]}
               >
-                <Text style={styles.highlightEmoji}>{h.emoji}</Text>
-                <Text style={[styles.highlightText, { color: theme.text }]}>{h.text}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-
-        {/* Group stats */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>
-            GROUP STATS
-          </Text>
-          <View style={styles.statsGrid}>
-            {[
-              { label: 'Total tasks', value: tasks.length, icon: 'list', color: theme.accent },
-              { label: 'Completed', value: tasks.filter(t => t.status === 'done').length, icon: 'check-circle', color: theme.green },
-              { label: 'Overdue', value: tasks.filter(t => t.status === 'overdue').length, icon: 'alert-circle', color: theme.red },
-              { label: 'Total pts', value: members.reduce((s, m) => s + m.score, 0), icon: 'award', color: theme.yellow },
-            ].map((stat, i) => (
-              <View key={i} style={[styles.statCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-                <View style={[styles.statIcon, { backgroundColor: stat.color + '22' }]}>
-                  <Feather name={stat.icon as any} size={16} color={stat.color} />
+                <Text style={[styles.listRank, { color: theme.textTertiary }]}>{i + 4}</Text>
+                <View style={[styles.listAvatar, { backgroundColor: member.color + '22' }]}>
+                  <Text style={[styles.listInitials, { color: member.color }]}>{member.initials}</Text>
                 </View>
-                <Text style={[styles.statVal, { color: theme.text }]}>{stat.value}</Text>
-                <Text style={[styles.statLabel, { color: theme.textSecondary }]}>{stat.label}</Text>
+                <View style={styles.listInfo}>
+                  <Text style={[styles.listName, { color: theme.text }]}>
+                    {member.name}{member.isCurrentUser ? ' (you)' : ''}
+                  </Text>
+                  <ScoreBar value={member.score} color={member.color} />
+                </View>
+                <Text style={[styles.listPts, { color: member.color }]}>{member.score} pts</Text>
               </View>
             ))}
           </View>
+        )}
+
+        {/* Motivational card */}
+        <View style={[styles.motivCard, { backgroundColor: theme.yellowLight }]}>
+          <Text style={{ fontSize: 22 }}>⭐</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.motivTitle, { color: theme.text }]}>You've got this!</Text>
+            <Text style={[styles.motivSub, { color: theme.textSecondary }]}>
+              Climb the ranks and keep the house happy.
+            </Text>
+          </View>
+          <Text style={{ fontSize: 28 }}>🌿</Text>
         </View>
 
         <View style={{ height: 100 }} />
@@ -124,54 +161,98 @@ export const MembersScreen = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+
   header: {
-    paddingHorizontal: Spacing.xl, paddingTop: 56, paddingBottom: Spacing.md,
+    paddingHorizontal: Spacing.xl,
+    paddingTop: 56,
+    paddingBottom: Spacing.md,
   },
-  title: { fontSize: 28, fontWeight: '700', letterSpacing: -0.5 },
+  title: {
+    fontSize: 28,
+    fontWeight: '700',
+    letterSpacing: -0.5,
+    marginBottom: Spacing.md,
+  },
+  tabRow: {
+    flexDirection: 'row',
+    borderRadius: Radius.full,
+    padding: 4,
+    alignSelf: 'flex-start',
+  },
+  tab: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: Radius.full,
+  },
+  tabText: { fontSize: 13, fontWeight: '600' },
+
   scroll: { paddingHorizontal: Spacing.xl },
 
-  podiumCard: {
-    borderRadius: Radius.lg, borderWidth: 0.5,
-    overflow: 'hidden', marginBottom: Spacing.xl,
+  podium: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'flex-end',
+    gap: 24,
+    paddingVertical: Spacing.xl,
+    marginBottom: Spacing.md,
   },
-  podiumTitle: { fontSize: 11, fontWeight: '600', letterSpacing: 0.7, padding: Spacing.md },
-  memberRow: {
-    flexDirection: 'row', alignItems: 'center',
-    padding: Spacing.md, gap: Spacing.md, borderBottomWidth: 0.5,
-  },
-  rankBadge: {
-    width: 32, height: 32, borderRadius: Radius.sm,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  rankText: { fontSize: 14, fontWeight: '700' },
-  memberInfo: { flex: 1 },
-  memberNameRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  memberName: { fontSize: 14, fontWeight: '500' },
-  memberScore: { fontSize: 14, fontWeight: '700', fontFamily: 'monospace' },
-  memberSub: { fontSize: 12, marginTop: 2 },
+  podiumItem: { alignItems: 'center', gap: 4 },
+  crown: { fontSize: 26, marginBottom: -2 },
 
-  section: { marginBottom: Spacing.xl },
-  sectionTitle: { fontSize: 11, fontWeight: '600', letterSpacing: 0.7, marginBottom: Spacing.md },
+  podiumAvatar: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+  },
+  podiumAvatarLg: { width: 82, height: 82, borderRadius: 41 },
 
-  highlightsCard: {
-    borderRadius: Radius.lg, borderWidth: 0.5, overflow: 'hidden',
-  },
-  highlightRow: {
-    flexDirection: 'row', alignItems: 'flex-start',
-    padding: Spacing.md, gap: Spacing.md, borderBottomWidth: 0.5,
-  },
-  highlightEmoji: { fontSize: 16, marginTop: 1 },
-  highlightText: { flex: 1, fontSize: 13, lineHeight: 20 },
+  podiumInitials: { fontSize: 20, fontWeight: '700' },
+  podiumInitialsLg: { fontSize: 26 },
+  podiumTrophy: { fontSize: 22, marginTop: 4 },
+  podiumName: { fontSize: 13, fontWeight: '600' },
+  podiumNameLg: { fontSize: 15 },
+  podiumPts: { fontSize: 13, fontWeight: '700' },
+  podiumPtsLg: { fontSize: 15 },
 
-  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
-  statCard: {
-    flex: 1, minWidth: '45%', borderRadius: Radius.lg,
-    borderWidth: 0.5, padding: Spacing.md, gap: 4,
+  listCard: {
+    borderRadius: Radius.xl,
+    overflow: 'hidden',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 8,
+    elevation: 3,
+    marginBottom: Spacing.xl,
   },
-  statIcon: {
-    width: 34, height: 34, borderRadius: Radius.sm,
-    alignItems: 'center', justifyContent: 'center', marginBottom: 4,
+  listRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing.md,
+    gap: Spacing.md,
+    borderBottomWidth: 0.5,
   },
-  statVal: { fontSize: 22, fontWeight: '700', letterSpacing: -0.5 },
-  statLabel: { fontSize: 12 },
+  listRank: { fontSize: 14, fontWeight: '600', width: 22, textAlign: 'center' },
+  listAvatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  listInitials: { fontSize: 14, fontWeight: '700' },
+  listInfo: { flex: 1 },
+  listName: { fontSize: 14, fontWeight: '500', marginBottom: 5 },
+  listPts: { fontSize: 14, fontWeight: '700' },
+
+  motivCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing.lg,
+    borderRadius: Radius.xl,
+    gap: Spacing.md,
+  },
+  motivTitle: { fontSize: 14, fontWeight: '700', marginBottom: 2 },
+  motivSub: { fontSize: 12 },
 });

@@ -76,6 +76,7 @@ export interface NotificationSetting {
 }
 
 export type RootStackParamList = {
+  Onboarding: undefined;
   Main: undefined;
   AddTask: undefined;
   TaskDetail: { taskId: string };
