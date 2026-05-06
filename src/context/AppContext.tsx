@@ -1,13 +1,13 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Task, Member, Group, ActivityItem } from '../types';
-import { MOCK_TASKS, MOCK_MEMBERS, MOCK_GROUP, MOCK_ACTIVITY } from '../constants/mockData';
+import { MOCK_GROUP } from '../constants/mockData';
 
 interface AppContextType {
   tasks: Task[];
   members: Member[];
   group: Group;
   activity: ActivityItem[];
-  currentUser: Member;
+  currentUser: Member | null;
   completeTask: (taskId: string) => void;
   addTask: (task: Task) => void;
   notificationSettings: {
@@ -16,53 +16,94 @@ interface AppContextType {
     overdueReminder: boolean;
   };
   toggleNotification: (key: 'morningDigest' | 'oneHourWarning' | 'overdueReminder') => void;
+  isLoading: boolean;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
 
+const API_URL = 'http://127.0.0.1:5000/api';
+
 export const AppProvider = ({ children }: { children: ReactNode }) => {
-  const [tasks, setTasks] = useState<Task[]>(MOCK_TASKS);
-  const [members] = useState<Member[]>(MOCK_MEMBERS);
-  const [activity, setActivity] = useState<ActivityItem[]>(MOCK_ACTIVITY);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [activity, setActivity] = useState<ActivityItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
   const [notificationSettings, setNotificationSettings] = useState({
     morningDigest: true,
     oneHourWarning: true,
     overdueReminder: false,
   });
 
-  const currentUser = members.find(m => m.isCurrentUser)!;
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [tasksRes, membersRes, activityRes] = await Promise.all([
+          fetch(`${API_URL}/tasks`),
+          fetch(`${API_URL}/members`),
+          fetch(`${API_URL}/activity`)
+        ]);
 
-  const completeTask = (taskId: string) => {
+        const tasksData = await tasksRes.json();
+        const membersData = await membersRes.json();
+        const activityData = await activityRes.json();
+
+        setTasks(tasksData);
+        setMembers(membersData);
+        setActivity(activityData);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  const currentUser = members.length > 0 ? members.find(m => m.isCurrentUser) || members[0] : null;
+
+  const completeTask = async (taskId: string) => {
+    // Optimistic update
     setTasks(prev => prev.map(t =>
       t.id === taskId
         ? { ...t, status: 'done' as const, completedAt: new Date().toISOString() }
         : t
     ));
-    const task = tasks.find(t => t.id === taskId);
-    if (task) {
-      const newActivity: ActivityItem = {
-        id: `act-${Date.now()}`,
-        type: 'completed',
-        memberId: currentUser.id,
-        taskTitle: task.title,
-        timestamp: new Date().toISOString(),
-        groupId: task.groupId,
-      };
-      setActivity(prev => [newActivity, ...prev]);
+
+    try {
+      const res = await fetch(`${API_URL}/tasks/${taskId}/complete`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ memberId: currentUser?.id })
+      });
+      if (!res.ok) throw new Error('Failed to complete task');
+
+      // Refresh activity feed after completing
+      const activityRes = await fetch(`${API_URL}/activity`);
+      setActivity(await activityRes.json());
+    } catch (error) {
+      console.error(error);
     }
   };
 
-  const addTask = (task: Task) => {
+  const addTask = async (task: Task) => {
+    // Optimistic update
     setTasks(prev => [task, ...prev]);
-    const newActivity: ActivityItem = {
-      id: `act-${Date.now()}`,
-      type: 'added',
-      memberId: currentUser.id,
-      taskTitle: task.title,
-      timestamp: new Date().toISOString(),
-      groupId: task.groupId,
-    };
-    setActivity(prev => [newActivity, ...prev]);
+
+    try {
+      const res = await fetch(`${API_URL}/tasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(task)
+      });
+      if (!res.ok) throw new Error('Failed to add task');
+
+      // Refresh activity feed after adding
+      const activityRes = await fetch(`${API_URL}/activity`);
+      setActivity(await activityRes.json());
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   const toggleNotification = (key: 'morningDigest' | 'oneHourWarning' | 'overdueReminder') => {
@@ -72,7 +113,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   return (
     <AppContext.Provider value={{
       tasks, members, group: MOCK_GROUP, activity, currentUser,
-      completeTask, addTask, notificationSettings, toggleNotification,
+      completeTask, addTask, notificationSettings, toggleNotification, isLoading
     }}>
       {children}
     </AppContext.Provider>
